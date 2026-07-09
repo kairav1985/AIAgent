@@ -1,13 +1,19 @@
 {
   "name": "excel-service",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Excel Generation API for AI QA Platform",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "excel",
+    "n8n",
+    "api",
+    "xlsx"
+  ],
+  "author": "Praveen",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
