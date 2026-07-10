@@ -8,70 +8,125 @@ const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-// Downloads folder
+// ===============================
+// Downloads Folder
+// ===============================
 const DOWNLOAD_DIR = path.join(__dirname, "downloads");
 
 if (!fs.existsSync(DOWNLOAD_DIR)) {
     fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 }
 
-// Download files
+// Serve generated files
 app.use("/downloads", express.static(DOWNLOAD_DIR));
 
+// ===============================
 // Health Check
+// ===============================
 app.get("/", (req, res) => {
-    res.send("Excel Service is Running 🚀");
+    res.send("✅ Excel Service Running");
 });
 
-// Excel API
+// ===============================
+// Generate Excel API
+// ===============================
 app.post("/api/excel/generate", (req, res) => {
+
     try {
 
-        console.log("========== REQUEST ==========");
+        console.log("======================================");
+        console.log("Incoming Request");
         console.log(JSON.stringify(req.body, null, 2));
-        console.log("=============================");
+        console.log("======================================");
 
-        let data = req.body.data;
-        const issueKey = req.body.issue_key || "TestCases";
+        let { issue_key, data } = req.body;
 
-        // If n8n sends string instead of array
+        issue_key = issue_key || "TestCases";
+
+        // Handle stringified JSON
         if (typeof data === "string") {
             data = JSON.parse(data);
         }
 
         if (!Array.isArray(data) || data.length === 0) {
             return res.status(400).json({
-                status: "error",
+                success: false,
                 message: "No data received"
             });
         }
 
-        console.log("Rows:", data.length);
+        console.log("Rows :", data.length);
+
+        // Create worksheet
+        const worksheet = XLSX.utils.json_to_sheet(data);
 
         // Create workbook
-        const worksheet = XLSX.utils.json_to_sheet(data);
         const workbook = XLSX.utils.book_new();
 
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Test Cases");
+        XLSX.utils.book_append_sheet(
+            workbook,
+            worksheet,
+            "Test Cases"
+        );
+
+        // File name
+        const fileName = `${issue_key}_TestCases.xlsx`;
+
+        const filePath = path.join(
+            DOWNLOAD_DIR,
+            fileName
+        );
 
         // Save file
-        const fileName = `${issueKey}_TestCases.xlsx`;
-        const filePath = path.join(DOWNLOAD_DIR, fileName);
-
         XLSX.writeFile(workbook, filePath);
 
-        console.log("Saved:", filePath);
+        console.log("Excel Saved :", filePath);
 
-        res.json({
+        // HTTPS download URL
+        const downloadUrl =
+            `https://${req.get("host")}/downloads/${fileName}`;
+
+        return res.json({
             success: true,
+            issue_key,
+            totalRows: data.length,
             fileName,
-            downloadUrl: `${req.protocol}://${req.get("host")}/downloads/${fileName}`
+            downloadUrl
         });
 
-    } catch (err) {
+    }
+    catch (err) {
 
         console.error(err);
+
+        return res.status(500).json({
+            success: false,
+            message: err.message
+        });
+
+    }
+
+});
+
+// ===============================
+// List Generated Files
+// ===============================
+app.get("/api/files", (req, res) => {
+
+    try {
+
+        const files = fs.readdirSync(DOWNLOAD_DIR);
+
+        const result = files.map(file => ({
+            file,
+            url: `https://${req.get("host")}/downloads/${file}`
+        }));
+
+        res.json(result);
+
+    } catch (err) {
 
         res.status(500).json({
             success: false,
@@ -79,10 +134,55 @@ app.post("/api/excel/generate", (req, res) => {
         });
 
     }
+
 });
 
+// ===============================
+// Delete File
+// ===============================
+app.delete("/api/files/:file", (req, res) => {
+
+    try {
+
+        const filePath = path.join(
+            DOWNLOAD_DIR,
+            req.params.file
+        );
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({
+                success: false,
+                message: "File not found"
+            });
+        }
+
+        fs.unlinkSync(filePath);
+
+        res.json({
+            success: true,
+            message: "File deleted"
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
+
+    }
+
+});
+
+// ===============================
+// Start Server
+// ===============================
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
+
+    console.log("=================================");
     console.log(`✅ Excel Service running on ${PORT}`);
+    console.log("=================================");
+
 });
