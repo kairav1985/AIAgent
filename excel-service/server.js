@@ -16,20 +16,29 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
     fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 }
 
-// Static download route
+// Download files
 app.use("/downloads", express.static(DOWNLOAD_DIR));
 
-// Health check
+// Health Check
 app.get("/", (req, res) => {
-    res.send("Excel Service Running");
+    res.send("Excel Service is Running 🚀");
 });
 
-// Generate Excel
+// Excel API
 app.post("/api/excel/generate", (req, res) => {
     try {
 
-        const data = req.body.data || [];
+        console.log("========== REQUEST ==========");
+        console.log(JSON.stringify(req.body, null, 2));
+        console.log("=============================");
+
+        let data = req.body.data;
         const issueKey = req.body.issue_key || "TestCases";
+
+        // If n8n sends string instead of array
+        if (typeof data === "string") {
+            data = JSON.parse(data);
+        }
 
         if (!Array.isArray(data) || data.length === 0) {
             return res.status(400).json({
@@ -38,22 +47,26 @@ app.post("/api/excel/generate", (req, res) => {
             });
         }
 
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Test Cases");
+        console.log("Rows:", data.length);
 
+        // Create workbook
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Test Cases");
+
+        // Save file
         const fileName = `${issueKey}_TestCases.xlsx`;
         const filePath = path.join(DOWNLOAD_DIR, fileName);
 
-        XLSX.writeFile(wb, filePath);
+        XLSX.writeFile(workbook, filePath);
 
-        const downloadUrl =
-            `${req.protocol}://${req.get("host")}/downloads/${fileName}`;
+        console.log("Saved:", filePath);
 
         res.json({
-            status: "success",
+            success: true,
             fileName,
-            downloadUrl
+            downloadUrl: `${req.protocol}://${req.get("host")}/downloads/${fileName}`
         });
 
     } catch (err) {
@@ -61,7 +74,7 @@ app.post("/api/excel/generate", (req, res) => {
         console.error(err);
 
         res.status(500).json({
-            status: "error",
+            success: false,
             message: err.message
         });
 
@@ -71,5 +84,5 @@ app.post("/api/excel/generate", (req, res) => {
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
-    console.log(`Excel Service running on ${PORT}`);
+    console.log(`✅ Excel Service running on ${PORT}`);
 });
