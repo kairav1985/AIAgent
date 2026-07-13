@@ -41,11 +41,22 @@ app.post("/api/excel/generate", (req, res) => {
         console.log(JSON.stringify(req.body, null, 2));
         console.log("======================================");
 
-        let { issue_key, data } = req.body;
+        let {
+            issue_key,
+            data,
+            testCases
+        } = req.body;
 
         issue_key = issue_key || "TestCases";
 
-        // Handle stringified JSON
+        // -----------------------------
+        // Support AI output
+        // -----------------------------
+        if (!data && Array.isArray(testCases)) {
+            data = testCases;
+        }
+
+        // Support stringified JSON
         if (typeof data === "string") {
             data = JSON.parse(data);
         }
@@ -71,7 +82,7 @@ app.post("/api/excel/generate", (req, res) => {
             "Test Cases"
         );
 
-        // File name
+        // File Name
         const fileName = `${issue_key}_TestCases.xlsx`;
 
         const filePath = path.join(
@@ -79,12 +90,10 @@ app.post("/api/excel/generate", (req, res) => {
             fileName
         );
 
-        // Save file
         XLSX.writeFile(workbook, filePath);
 
         console.log("Excel Saved :", filePath);
 
-        // HTTPS download URL
         const downloadUrl =
             `https://${req.get("host")}/downloads/${fileName}`;
 
@@ -96,8 +105,7 @@ app.post("/api/excel/generate", (req, res) => {
             downloadUrl
         });
 
-    }
-    catch (err) {
+    } catch (err) {
 
         console.error(err);
 
@@ -111,7 +119,7 @@ app.post("/api/excel/generate", (req, res) => {
 });
 
 // ===============================
-// List Generated Files
+// List Files
 // ===============================
 app.get("/api/files", (req, res) => {
 
@@ -150,10 +158,12 @@ app.delete("/api/files/:file", (req, res) => {
         );
 
         if (!fs.existsSync(filePath)) {
+
             return res.status(404).json({
                 success: false,
                 message: "File not found"
             });
+
         }
 
         fs.unlinkSync(filePath);
